@@ -227,7 +227,5 @@ namespace Conduit.Articles
         public string bio { get; set; }
         public string image { get; set; }
         public bool following { get; set; }
-
-
     }
 }
