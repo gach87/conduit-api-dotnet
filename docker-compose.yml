@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  conduit-api-dotnet:
+    image: gachlab/conduit-api-dotnet:latest
+    build:
+      context: .
+    volumes:
+      - ./src:/home/node/app/src
+    ports:
+      - 5000    
+    labels:
+      traefik.http.routers.conduit-api-dotnet.rule: Host(`conduit-api-dotnet.${GACHLAB_DOMAIN}`)
+      traefik.http.routers.conduit-api-dotnet.tls.certresolver: "le"
+      traefik.http.routers.conduit-api-dotnet.entrypoints: "websecure"
