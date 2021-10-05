@@ -22,8 +22,7 @@ namespace Conduit
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
-            services.AddDbContext<ArticleContext>(opt =>
-                                            opt.UseInMemoryDatabase("Articles"));
+            services.AddDbContext<ArticleContext>(opt => opt.UseInMemoryDatabase("Articles"), ServiceLifetime.Singleton);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
