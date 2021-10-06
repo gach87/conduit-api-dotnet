@@ -18,7 +18,7 @@ namespace Conduit.Models
         public bool favorited { get; set; }
         public int favoritesCount { get; set; }
         public Profile author { get; set; }
-        public IEnumerable<Comment> comments { get; set;}
+        public IEnumerable<Comment> comments { get; set; }
 
     }
     public class Profile
@@ -39,6 +39,8 @@ namespace Conduit.Models
     public class Comment
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+
         public int id { get; set; }
         public DateTime createdAt { get; set; }
         public DateTime updatedAt { get; set; }

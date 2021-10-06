@@ -13,11 +13,11 @@ namespace Conduit.Articles
     [ApiController]
     public class ArticlesController : ControllerBase
     {
-        private readonly ArticleContext _articleContext;
+        private readonly ArticleContext _context;
 
         public ArticlesController(ArticleContext articleContext)
         {
-            _articleContext = articleContext;
+            _context = articleContext;
         }
 
         [HttpGet]
@@ -30,7 +30,7 @@ namespace Conduit.Articles
             [FromQuery] int offset = 0
         )
         {
-            var articles = await _articleContext.Articles
+            var articles = await _context.Articles
             .Where(article =>
             article.author != null && article.author.username != null && article.author.username == author ||
             article.tagList != null && article.tagList.Count() > 0 && article.tagList.Any(tagInList => tag == tagInList.name ||
@@ -59,7 +59,7 @@ namespace Conduit.Articles
         [Route("articles/{slug}")]
         public async Task<ActionResult<SingleArticleResponse>> GetArticle(string slug)
         {
-            var articleInRepo = await _articleContext.Articles.FirstOrDefaultAsync(articleInRepo => articleInRepo.slug == slug);
+            var articleInRepo = await _context.Articles.FindAsync(slug);
             if (articleInRepo != null)
             {
                 var article = new Article()
@@ -95,7 +95,7 @@ namespace Conduit.Articles
             [FromQuery] int offset = 0
             )
         {
-            var articles = await _articleContext.Articles
+            var articles = await _context.Articles
                        .Select(article => new Article()
                        {
                            slug = article.slug,
@@ -134,8 +134,8 @@ namespace Conduit.Articles
                 comments = new List<Conduit.Models.Comment>()
             };
 
-            _articleContext.Articles.Add(articleToSave);
-            await _articleContext.SaveChangesAsync();
+            _context.Articles.Add(articleToSave);
+            await _context.SaveChangesAsync();
 
             var articleResponse = new Article()
             {
@@ -162,15 +162,16 @@ namespace Conduit.Articles
         [Route("articles/{slug}")]
         public async Task<ActionResult<SingleArticleResponse>> UpdateArticle(string slug, [FromBody] UpdateArticleRequest article)
         {
-            var articleInRepo = await _articleContext.Articles.FirstOrDefaultAsync(articleInRepo => articleInRepo.slug == slug);
+            var articleInRepo = await _context.Articles.FindAsync(slug);
 
             if (articleInRepo != null)
             {
                 articleInRepo.title = article.article.title != null ? article.article.title : articleInRepo.title;
                 articleInRepo.description = article.article.description != null ? article.article.description : articleInRepo.description;
                 articleInRepo.body = article.article.body != null ? article.article.body : articleInRepo.body;
+                articleInRepo.updatedAt = DateTime.UtcNow;
 
-                await _articleContext.SaveChangesAsync();
+                await _context.SaveChangesAsync();
                 var articleResponse = new Article()
                 {
                     slug = articleInRepo.slug,
@@ -198,14 +199,14 @@ namespace Conduit.Articles
 
         [HttpDelete]
         [Route("articles/{slug}")]
-        public async Task<ActionResult<SingleArticleResponse>> DeleteArticle(string slug, [FromBody] UpdateArticleRequest article)
+        public async Task<ActionResult<SingleArticleResponse>> DeleteArticle(string slug)
         {
-            var articleInRepo = await _articleContext.Articles.FirstOrDefaultAsync(articleInRepo => articleInRepo.slug == slug);
+            var articleInRepo = await _context.Articles.FindAsync(slug);
 
             if (articleInRepo != null)
             {
-                _articleContext.Articles.Remove(articleInRepo);
-                await _articleContext.SaveChangesAsync();
+                _context.Articles.Remove(articleInRepo);
+                await _context.SaveChangesAsync();
                 return Ok();
             }
             else
@@ -219,20 +220,22 @@ namespace Conduit.Articles
         [Route("/articles/{slug}/comments")]
         public async Task<ActionResult<MultipleCommentsResponse>> GetArticleComments(string slug)
         {
-            var articleInRepo = await _articleContext.Articles.FirstOrDefaultAsync(articleInRepo => articleInRepo.slug == slug);
+            var articleInRepo = await _context.Articles.FindAsync(slug);
             if (articleInRepo != null)
             {
                 if (articleInRepo.comments != null && articleInRepo.comments.Count() > 0)
                 {
-                    var comments = articleInRepo.comments.Select(commentInRepo => new Comment()
-                    {
+                    Console.WriteLine(articleInRepo.comments.Count());
+                    var comments = articleInRepo.comments.Select(commentInRepo =>
+                     new Comment()
+                     {
 
-                        id = commentInRepo.id,
-                        createdAt = commentInRepo.createdAt,
-                        updatedAt = commentInRepo.updatedAt,
-                        body = commentInRepo.body,
-                        author = new Profile() { username = commentInRepo.author.username, bio = commentInRepo.author.bio, image = commentInRepo.author.image, following = commentInRepo.author.following }
-                    });
+                         id = commentInRepo.id,
+                         createdAt = commentInRepo.createdAt,
+                         updatedAt = commentInRepo.updatedAt,
+                         body = commentInRepo.body,
+                         author = commentInRepo.author != null ? new Profile() { username = commentInRepo.author.username, bio = commentInRepo.author.bio, image = commentInRepo.author.image, following = commentInRepo.author.following } : null
+                     });
 
                     var response = new MultipleCommentsResponse() { comments = comments };
                     return (response);
@@ -252,9 +255,9 @@ namespace Conduit.Articles
 
         [HttpPost]
         [Route("articles/{slug}/comments")]
-        public async Task<ActionResult<SingleCommentResponse>> CreateArticleComment(string slug, [FromBody] Comment comment)
+        public async Task<ActionResult<SingleCommentResponse>> CreateArticleComment(string slug, [FromBody] CommentRequest comment)
         {
-            var articleInRepo = await _articleContext.Articles.FirstOrDefaultAsync(articleInRepo => articleInRepo.slug == slug);
+            var articleInRepo = await _context.Articles.FindAsync(slug);
             if (articleInRepo != null)
             {
                 if (articleInRepo.comments != null)
@@ -264,12 +267,13 @@ namespace Conduit.Articles
                         id = articleInRepo.comments.Count() + 1,
                         createdAt = DateTime.UtcNow,
                         updatedAt = DateTime.UtcNow,
-                        body = comment.body,
-                        author = comment.author != null ? new Conduit.Models.Profile() { username = comment.author.username, bio = comment.author.bio, image = comment.author.image, following = comment.author.following } : null
+                        body = comment.comment.body,
+                        author = comment.comment.author != null ? new Conduit.Models.Profile() { username = comment.comment.author.username, bio = comment.comment.author.bio, image = comment.comment.author.image, following = comment.comment.author.following } : null
                     };
-                    var comments = articleInRepo.comments.ToList();
-                    comments.Add(commentToAdd);
-                    await _articleContext.SaveChangesAsync();
+
+                    articleInRepo.comments = articleInRepo.comments.Concat(new List<Conduit.Models.Comment>() { commentToAdd }).ToList();
+                    await _context.SaveChangesAsync();
+
                     var response = new SingleCommentResponse()
                     {
                         comment = new Comment()
@@ -278,13 +282,13 @@ namespace Conduit.Articles
                             createdAt = commentToAdd.createdAt,
                             updatedAt = commentToAdd.updatedAt,
                             body = commentToAdd.body,
-                            author = new Profile()
+                            author = commentToAdd.author != null ? new Profile()
                             {
                                 username = commentToAdd.author.username,
                                 bio = commentToAdd.author.bio,
                                 image = commentToAdd.author.image,
                                 following = commentToAdd.author.following
-                            }
+                            } : null
                         }
                     };
                     return (response);
@@ -301,6 +305,38 @@ namespace Conduit.Articles
                 return (response);
             }
         }
+        [HttpDelete]
+        [Route("articles/{slug}/comments/{commentId}")]
+        public async Task<ActionResult<SingleArticleResponse>> DeleteArticleComment(string slug, int commentId)
+        {
+            var articleInRepo = await _context.Articles.FindAsync(slug);
+            if (articleInRepo != null)
+            {
+                if (articleInRepo.comments != null)
+                {
+                    articleInRepo.comments = articleInRepo.comments.Where(comment => comment.id != commentId).ToList();
+                    await _context.SaveChangesAsync();
+                    var response = Ok();
+                    return (response);
+                }
+                else
+                {
+                    var response = NotFound();
+                    return (response);
+                }
+            }
+            else
+            {
+                var response = NotFound();
+                return (response);
+            }
+        }
+
+    }
+
+    public class CommentRequest
+    {
+        public Comment comment { get; set; }
     }
     public class SingleCommentResponse
     {
