@@ -8,9 +8,9 @@ namespace Conduit.Tags
 {
     public class TagsController
     {
-        private readonly ArticleContext _context;
+        private readonly ConduitContext _context;
 
-        public TagsController(ArticleContext context)
+        public TagsController(ConduitContext context)
         {
             _context = context;
         }

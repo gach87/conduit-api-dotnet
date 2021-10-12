@@ -2,13 +2,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Conduit.Models
 {
-    public class ArticleContext : DbContext
+    public class ConduitContext : DbContext
     {
-        public ArticleContext(DbContextOptions<ArticleContext> options)
+        public ConduitContext(DbContextOptions<ConduitContext> options)
             : base(options)
         {
         }
 
         public DbSet<Article> Articles { get; set; }
+        public DbSet<User> Users { get; set; }
     }
 }

@@ -13,16 +13,16 @@ namespace Conduit.Articles
     [ApiController]
     public class ArticlesController : ControllerBase
     {
-        private readonly ArticleContext _context;
+        private readonly ConduitContext _context;
 
-        public ArticlesController(ArticleContext articleContext)
+        public ArticlesController(ConduitContext context)
         {
-            _context = articleContext;
+            _context = context;
         }
 
         [HttpGet]
         [Route("articles")]
-        public async Task<ActionResult<MultipleArticlesResponse>> ListArticles(
+        public async Task<ActionResult<MultipleArticlesResponse>> GetArticles(
             [FromQuery] string tag,
             [FromQuery] string author,
             [FromQuery] string favorited,
@@ -34,8 +34,10 @@ namespace Conduit.Articles
             .Where(article =>
             article.author != null && article.author.username != null && article.author.username == author ||
             article.tagList != null && article.tagList.Count() > 0 && article.tagList.Any(tagInList => tag == tagInList.name ||
-            true
+              true
             ))
+            .Take(limit)
+            .Skip(offset)
             .Select(article => new Article()
             {
                 slug = article.slug,
@@ -88,6 +90,7 @@ namespace Conduit.Articles
             }
         }
 
+        [HttpPost]
         [HttpGet]
         [Route("/articles/feed")]
         public async Task<ActionResult<MultipleArticlesResponse>> GetArticleFeed(
@@ -115,7 +118,6 @@ namespace Conduit.Articles
             return (response);
         }
 
-        [HttpPost]
         [Route("articles")]
         public async Task<ActionResult<SingleArticleResponse>> CreateArticle([FromBody] NewArticleRequest article)
         {
@@ -305,34 +307,9 @@ namespace Conduit.Articles
                 return (response);
             }
         }
-        [HttpDelete]
-        [Route("articles/{slug}/comments/{commentId}")]
-        public async Task<ActionResult<SingleArticleResponse>> DeleteArticleComment(string slug, int commentId)
-        {
-            var articleInRepo = await _context.Articles.FindAsync(slug);
-            if (articleInRepo != null)
-            {
-                if (articleInRepo.comments != null)
-                {
-                    articleInRepo.comments = articleInRepo.comments.Where(comment => comment.id != commentId).ToList();
-                    await _context.SaveChangesAsync();
-                    var response = Ok();
-                    return (response);
-                }
-                else
-                {
-                    var response = NotFound();
-                    return (response);
-                }
-            }
-            else
-            {
-                var response = NotFound();
-                return (response);
-            }
-        }
-
     }
+
+
 
     public class CommentRequest
     {
