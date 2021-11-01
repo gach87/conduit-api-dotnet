@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Conduit.Models
@@ -12,5 +13,13 @@ namespace Conduit.Models
 
         public string bio { get; set; }
         public string image { get; set; }
+
+        public IList<Follower> followers { get; set; }
+    }
+
+    public class Follower
+    {
+        [Key]
+        public string username { get; set; }
     }
 }

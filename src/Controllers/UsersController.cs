@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Conduit.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Conduit.Controllers
 {
@@ -17,12 +19,12 @@ namespace Conduit.Controllers
 
         [HttpGet]
         [Route("user")]
-        public ActionResult<UserResponse> GetCurrentUser()
+        public async Task<ActionResult<UserResponse>> GetCurrentUser()
         {
             this.Request.Headers.TryGetValue("Authorization", out var headerValue);
             if (headerValue != "")
             {
-                var user = _context.Users.FirstOrDefault(user => headerValue.ToString().Contains(user.token));
+                var user = await _context.Users.FirstOrDefaultAsync(user => headerValue.ToString().Contains(user.token));
                 if (user != null)
                 {
                     return Ok(new UserResponse()
@@ -48,14 +50,17 @@ namespace Conduit.Controllers
 
         [HttpPut]
         [Route("user")]
-        public ActionResult<UserResponse> UpdateCurrentUser([FromBody] UpdateUserRequest request)
+        public async Task<ActionResult<UserResponse>> UpdateCurrentUser([FromBody] UpdateUserRequest request)
         {
             this.Request.Headers.TryGetValue("Authorization", out var headerValue);
             if (headerValue != "")
             {
-                var user = _context.Users.FirstOrDefault(user => headerValue.ToString().Contains(user.token));
+                var user = await _context.Users.FirstOrDefaultAsync(user => headerValue.ToString().Contains(user.token));
                 if (user != null)
                 {
+                    user.bio = request.user.bio != null ? request.user.bio : user.bio;
+                    user.image = request.user.image != null ? request.user.image : user.image;
+                    await _context.SaveChangesAsync();
                     return Ok(new UserResponse()
                     {
                         user = new User()
@@ -80,7 +85,7 @@ namespace Conduit.Controllers
 
         [HttpPost]
         [Route("users/login")]
-        public async Task<ActionResult<UserResponse>> Login([FromBody] LoginUserRequst request)
+        public async Task<ActionResult<UserResponse>> Login([FromBody] LoginUserRequest request)
         {
             var user = await _context.Users.FindAsync(request.user.email);
             if (user != null)
@@ -119,7 +124,8 @@ namespace Conduit.Controllers
                     username = request.user.username,
                     token = System.Guid.NewGuid().ToString(),
                     bio = "",
-                    image = ""
+                    image = "",
+                    followers = new List<Conduit.Models.Follower>()
                 };
                 _context.Add(newUser);
                 _context.SaveChanges();
@@ -159,7 +165,7 @@ namespace Conduit.Controllers
         public string image { get; set; }
     }
 
-    public class LoginUserRequst
+    public class LoginUserRequest
     {
         public LoginUser user { get; set; }
     }
