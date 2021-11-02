@@ -98,66 +98,102 @@ namespace Conduit.Articles
             [FromQuery] int offset = 0
             )
         {
-            var articles = await _context.Articles
-                       .Select(article => new Article()
-                       {
-                           slug = article.slug,
-                           title = article.title,
-                           description = article.description,
-                           body = article.body,
-                           createdAt = article.createdAt,
-                           updatedAt = article.updatedAt,
-                           favorited = article.favorited,
-                           favoritesCount = article.favoritesCount,
-                           tagList = article.tagList.Select(tag => tag.name)
-                       }).Take(limit).Skip(offset).ToListAsync();
+            this.Request.Headers.TryGetValue("Authorization", out var headerValue);
+            if (headerValue != "")
+            {
+                var currentUser = await _context.Users.FirstOrDefaultAsync(user => headerValue.ToString().Contains(user.token));
+                if (currentUser != null)
+                {
+                    var followedUsers = _context.Users.Where(user => user.followers.Contains(new Follower() { username = currentUser.username })).ToList();
 
-            var response =
-               new MultipleArticlesResponse(articles, articles.Count());
+                    var articles = await _context.Articles.Where(Article => followedUsers.Contains(new User() { username = Article.author.username }))
+                               .Select(article => new Article()
+                               {
+                                   slug = article.slug,
+                                   title = article.title,
+                                   description = article.description,
+                                   body = article.body,
+                                   createdAt = article.createdAt,
+                                   updatedAt = article.updatedAt,
+                                   favorited = article.favorited,
+                                   favoritesCount = article.favoritesCount,
+                                   tagList = article.tagList.Select(tag => tag.name)
+                               }).Take(limit).Skip(offset).ToListAsync();
 
-            return (response);
+                    var response =
+                       new MultipleArticlesResponse(articles, articles.Count());
+
+                    return (response);
+                }
+                else
+                {
+                    return Unauthorized();
+                }
+            }
+            else
+            {
+                return UnprocessableEntity();
+            }
         }
 
         [Route("articles")]
         public async Task<ActionResult<SingleArticleResponse>> CreateArticle([FromBody] NewArticleRequest article)
         {
-            var articleToSave = new Conduit.Models.Article()
+            this.Request.Headers.TryGetValue("Authorization", out var headerValue);
+            if (headerValue != "")
             {
-                slug = article.article.title.Replace(" ", "-").ToLower(),
-                title = article.article.title,
-                description = article.article.description,
-                body = article.article.body,
-                createdAt = DateTime.UtcNow,
-                updatedAt = DateTime.UtcNow,
-                favorited = false,
-                favoritesCount = 0,
-                author = new Conduit.Models.Profile() { username = "test", bio = "test", image = "test", following = false },
-                tagList = article.article.tagList != null && article.article.tagList.Count() > 0 ? article.article.tagList.Select(tag => new Tag() { name = tag }).ToList() : new List<Tag>(),
-                comments = new List<Conduit.Models.Comment>()
-            };
+                var currentUser = await _context.Users.FirstOrDefaultAsync(user => headerValue.ToString().Contains(user.token));
+                if (currentUser != null)
 
-            _context.Articles.Add(articleToSave);
-            await _context.SaveChangesAsync();
+                {
+                    var articleToSave = new Conduit.Models.Article()
+                    {
+                        slug = article.article.title.Replace(" ", "-").ToLower(),
+                        title = article.article.title,
+                        description = article.article.description,
+                        body = article.article.body,
+                        createdAt = DateTime.UtcNow,
+                        updatedAt = DateTime.UtcNow,
+                        favorited = false,
+                        favoritesCount = 0,
+                        author = new Conduit.Models.Profile() { username = currentUser.username, bio = currentUser.bio, image = currentUser.image, following = false },
+                        tagList = article.article.tagList != null && article.article.tagList.Count() > 0 ? article.article.tagList.Select(tag => new Tag() { name = tag }).ToList() : new List<Tag>(),
+                        comments = new List<Conduit.Models.Comment>()
+                    };
 
-            var articleResponse = new Article()
+                    _context.Articles.Add(articleToSave);
+                    await _context.SaveChangesAsync();
+
+                    var articleResponse = new Article()
+                    {
+                        slug = articleToSave.slug,
+                        title = articleToSave.title,
+                        description = articleToSave.description,
+                        body = articleToSave.body,
+                        createdAt = articleToSave.createdAt,
+                        updatedAt = articleToSave.updatedAt,
+                        favorited = articleToSave.favorited,
+                        favoritesCount = articleToSave.favoritesCount,
+                        tagList = articleToSave.tagList.Select(tag => tag.name),
+                        author = new Profile() { username = articleToSave.author.username, bio = articleToSave.author.bio, image = articleToSave.author.image, following = false }
+                    };
+
+                    var response = new SingleArticleResponse()
+                    {
+                        article = articleResponse
+                    };
+
+                    return CreatedAtAction(nameof(GetArticle), new { slug = response.article.slug }, response);
+                }
+                else
+                {
+                    return Unauthorized();
+                }
+            }
+            else
             {
-                slug = articleToSave.slug,
-                title = articleToSave.title,
-                description = articleToSave.description,
-                body = articleToSave.body,
-                createdAt = articleToSave.createdAt,
-                updatedAt = articleToSave.updatedAt,
-                favorited = articleToSave.favorited,
-                favoritesCount = articleToSave.favoritesCount,
-                tagList = articleToSave.tagList.Select(tag => tag.name)
-            };
-
-            var response = new SingleArticleResponse()
-            {
-                article = articleResponse
-            };
-
-            return CreatedAtAction(nameof(GetArticle), new { slug = response.article.slug }, response);
+                return UnprocessableEntity();
+            }
         }
 
         [HttpPut]
@@ -227,17 +263,16 @@ namespace Conduit.Articles
             {
                 if (articleInRepo.comments != null && articleInRepo.comments.Count() > 0)
                 {
-                    Console.WriteLine(articleInRepo.comments.Count());
                     var comments = articleInRepo.comments.Select(commentInRepo =>
-                     new Comment()
-                     {
+                    new Comment()
+                    {
 
-                         id = commentInRepo.id,
-                         createdAt = commentInRepo.createdAt,
-                         updatedAt = commentInRepo.updatedAt,
-                         body = commentInRepo.body,
-                         author = commentInRepo.author != null ? new Profile() { username = commentInRepo.author.username, bio = commentInRepo.author.bio, image = commentInRepo.author.image, following = commentInRepo.author.following } : null
-                     });
+                        id = commentInRepo.id,
+                        createdAt = commentInRepo.createdAt,
+                        updatedAt = commentInRepo.updatedAt,
+                        body = commentInRepo.body,
+                        author = commentInRepo.author != null ? new Profile() { username = commentInRepo.author.username, bio = commentInRepo.author.bio, image = commentInRepo.author.image, following = commentInRepo.author.following } : null
+                    });
 
                     var response = new MultipleCommentsResponse() { comments = comments };
                     return (response);
@@ -307,6 +342,50 @@ namespace Conduit.Articles
                 return (response);
             }
         }
+
+        [HttpDelete]
+        [Route("/articles/{slug}/comments/{id}")]
+        public async Task<ActionResult<MultipleCommentsResponse>> DeleteArticleComments(string slug, int id)
+        {
+            this.Request.Headers.TryGetValue("Authorization", out var headerValue);
+            if (headerValue != "")
+            {
+                var currentUser = await _context.Users.FirstOrDefaultAsync(user => headerValue.ToString().Contains(user.token));
+                if (currentUser != null)
+                {
+                    var articleInRepo = await _context.Articles.FindAsync(slug);
+                    if (articleInRepo != null)
+                    {
+                        if (articleInRepo.comments != null && articleInRepo.comments.Count() > 0)
+                        {
+                            articleInRepo.comments = articleInRepo.comments.Where(Comment => Comment.id != id).ToList();
+                            await _context.SaveChangesAsync();
+                            return Ok();
+                        }
+                        else
+                        {
+                            return NotFound();
+                        }
+                    }
+                    else
+                    {
+                        var response = NotFound();
+                        return (response);
+                    }
+                }
+                else
+                {
+                    return Unauthorized();
+                }
+            }
+            else
+            {
+                return UnprocessableEntity();
+
+            }
+
+        }
+
     }
 
 
